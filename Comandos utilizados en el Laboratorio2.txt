@@ -1,0 +1,54 @@
+Comandos utilizados en el Laboratorio: modulo2 - SO3-Adrian-Alcantara-module2
+
+
+--- Laboratorio 2.1: Upgrade/Update-Bashtop
+
+-date
+-sudo dnf update -y
+-sudo dnf upgrade -y
+-dnf repolist
+-dnf search bashtop
+-sudo dnf epel-release -y
+-sudo dnf install bashtop
+-cd bashtop
+-dnf install make git -y
+-git clone https://github.com/aristocratos/bashtop.git
+-sudo make install
+-cd
+-./bashtop
+-rm -r bashtop
+-dnf autoremove -y
+
+
+--- Laboratorio 2.2: Automatización de tareas con los comandos (cron & at)
+
+-date
+-crontab -e (0 23 * * * sudo dnf update -y) (0 3 * * 0 sudo reboot)
+-sudo su
+-dnf install at -y
+-systemctl enable atd
+-ls /tmp
+-at now + 1 minute
+-rm -rf /tmp/*
+-crontab -l
+
+
+--- Laboratorio 2.3: Montar/Desmontar un disco duro
+
+-date /t
+-time /t
+-lsblk
+-sudo su
+-mkfs.ext4 /dev/nvme0n2
+-cd Escritorio
+-mkdir Laboratorio
+-cd Laboratorio
+-sudo mount /dev/nvme0n2 -/Escritorio/Laboratorio
+-ls
+-ls -l
+-df -h
+-cd
+-touch AdrianAlcantara.txt
+-sudo mount /dev/nvme0n2 /mnt
+-clear
+-date
