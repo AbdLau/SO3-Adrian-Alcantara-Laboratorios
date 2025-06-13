@@ -1,0 +1,118 @@
+---------------- Comandos utilizados en las practicas - SO3-Adrian-Alcantara-module3 -----------------
+
+
+
+Laboratorio 3.1 Configuración del menu de grub2/restaurar contraseña de root.
+
+terminal de oracle: 
+
+-date
+-sudo nano /etc/default/grub
+-sudo reboot
+-sudo grub2-mkconfig -o /boot/grub2/grub.cfg
+
+---Terminal de grub:
+
+-rd.break (en la linea que comienza con Linux y termina con quiet, justo después de quiet)
+-mount -o remount.rw /sysroot
+-chroot /sysroot
+-passwd
+-touch /.autorelabel
+-exit
+-exit
+
+Laboratorio 3.2 Automatización de respaldos y gestión de red en Oracle Linux
+
+-date
+-nano backup_home.sh
+
+--- Dentro de "nano backup_home.sh":
+
+#!/bin/bash
+
+# Carpeta que quieres respaldar (ajustá "Erick" si tu usuario es otro)
+USER_DIR="/home/Erick"
+
+# Fecha y hora actual en formato dd-mm-yyyy:hh:mm
+DATE=$(date +"%d-%m-%Y:%H:%M")
+
+# Nombre del archivo tar
+BACKUP_NAME="backup-$DATE.tar.gz"
+
+# Ruta donde se guardará el backup (puede ser el Escritorio si quieres)
+DEST_DIR="/home/Erick/Escritorio"
+
+# Crear el backup
+tar -czvf "$DEST_DIR/$BACKUP_NAME" "$USER_DIR"
+
+echo "Backup creado en: $DEST_DIR/$BACKUP_NAME"
+
+Terminal de Oracle:
+
+-nano guardar_ifconfig.sh
+
+--- Dentro de "nano guardar_ifconfig.sh" ---
+
+#!/bin/bash
+
+# Preguntar nombre del archivo
+read -p "¿Qué nombre quieres darle al archivo? " filename
+
+# Ruta al archivo de salida
+OUTPUT="/home/Erick/Escritorio/$filename.txt"
+
+# Guardar resultado de ifconfig
+ifconfig > "$OUTPUT"
+
+echo "Archivo creado en: $OUTPUT"
+
+--- Terminal de Oracle ---
+
+-chmod +x backup_home.sh guardar_ifconfig.sh
+-./backup_home.sh
+-./guardar_ifconfig.sh
+
+--- Nombrar el archivo ---
+
+-cd Escritorio
+-ls
+-cat Laboratorio3.1
+
+Laboratorio 3.3 Gestion de permisos de archivos
+
+(Antes de empezar con los comandos, configurar el adatador de red en modo bridge y marcar "Replicate physical network connection state)
+
+-ip a
+
+--- CMD en Windows (maquina host) ---
+
+-ping 192.168.100.150
+
+--- Terminal en linux (maquina virtual) ---
+
+-systemctl enable sshd
+-systemctl start sshd
+-systemctl status sshd
+
+--- CMD en Windows (maquina host) ---
+
+-ssh Erick@192.168.100.150 (cuando pregunte si queremos continuar escribir "yes", luego poner la contraseña del usuario al que intentamos entrar)
+-date (comando de prueba)
+-sudo su (comando de prueba)
+-exit
+-exit
+-ssh-keygen (enter 2 veces para guardar la llave ssh en la dirección por defecto y para saltarse el passphrase)
+
+(copiar la llave ssh publica de la dirección proporcionada por el sistema)
+
+--- Terminal en linux (maquina virtual) ---
+
+-ssh Erick@192.168.100.150 (yes)
+-mkdir -p ~/.ssh
+-echo "ssh-ed25519 AAAAC3NzaC##################qf19cWv/SWFQQ0dI6PAJAuv1JAgFOgTtc dell@DESKTOP-NQFPUUG" >> ~/.ssh/authorized_keys (lo censure, pero es la clave ssh publica)
+-chmod 700 ~/.ssh
+-chmod 600 ~/.ssh/authorized_keys
+
+--- CMD en Windows (maquina host) ---
+
+ssh Erick@192.168.100.150 (ya debería entrar sin contraseña)
