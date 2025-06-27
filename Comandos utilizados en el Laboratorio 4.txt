@@ -1,0 +1,213 @@
+----- Comandos utilizados en laboratorio 4.1: servidor HTTP apache2/nginx -----
+
+-date
+-sudo su
+-dnf install httpd -y
+-systemctl enable --now httpd
+-systemctl status httpd
+-mkdir -p /var/www/hola_mundo
+-echo "<html><body><h1>Hola Mundo</h1></body></html>" | sudo tee /var/www/hola_mundo/index.html
+-chown -R apache:apache /var/www/hola_mundo
+-nano /etc/httpd/conf.d/hola_mundo.conf
+
+-- Nano --
+
+<VirtualHost *:80>
+    ServerName holamundo.local
+    DocumentRoot /var/www/hola_mundo
+    ErrorLog logs/hola_mundo-error.log
+    CustomLog logs/hola_mundo-access.log combined
+</VirtualHost>
+
+-- terminal --
+
+-mkdir -p /var/www/erick_site
+-nano /var/www/erick_site/index.html
+
+-- nano --
+
+<html>
+  <body>
+    <h1>Erick</h1>
+    <p>Matricula: 20250846</p>
+    <p>Materia: Sistemas Operativos 3</p>
+  </body>
+</html>
+
+-- terminal --
+
+-chown -R apache:apache /var/www/erick_site
+-nano /etc/httpd/conf/httpd.conf
+
+-- nano --
+
+(Debajo de Listen)
+Listen 8080
+
+-- terminal --
+
+- nano /etc/httpd/conf.d/erick8080
+
+-- nano --
+
+<VirtualHost *:8080>
+    ServerName erick.local
+    DocumentRoot /var/www/erick_site
+    ErrorLog logs/erick-error.log
+    CustomLog logs/erick-access.log combined
+</VirtualHost>
+
+-- terminal --
+
+-echo "127.0.0.1 holamundo.local" | sudo tee -a /etc/hosts
+-echo "127.0.0.1 erick.local" | sudo tee -a /etc/hosts
+-systemctl restart httpd
+
+-- navegador --
+
+-httpd://holamundo.local
+-httpd://erick.local:8080
+
+----- Comandos utilizados en laboratorio 4.2: servidores de correo -----
+
+-date
+-dnf install postfix -y
+-systemctl enable --now postfix
+-systemctl status postfix
+-nano /etc/postfix/main.cf
+
+-- nano --
+
+(Buscar y cambiar estas líneas)
+
+myhostname = servidor20250846.local
+myorigin = $myhostname
+inet_interfaces = all
+inet_protocols = ipv4
+mydestination = $myhostname, localhost.$mydomain, localhost
+
+-- terminal --
+
+-dnf install s-nail -y
+-echo "Correo prueba" | mail -s "Hola" root
+-sudo nail -f /var/spool/mail/root
+-exit
+-echo "Erick Abdiel L. 20250846" | mail -s "Correo externo linux" (correodeprueba@gmail.com)
+-mailq
+
+-- navegador host --
+
+buscar https://myaccount.google.com/security
+
+Activa la verificación en dos pasos (si no la tienes).
+
+entrar a https://myaccount.google.com/apppasswords
+
+Crea una nueva clave para "Correo".
+
+Guardar la clave de google
+
+-- terminal --
+
+-sudo nano /etc/postfix/sasl_passwd
+-[smtp.gmail.com]:587 correodeprueba@gmail.com:clave de google (todo jutno, sin espacios)
+-sudo su
+-postmap /etc/postfix/sasl_passwd
+-chown root:root /etc/postfix/sasl_passwd /etc/postfix/sasl_passwd.db
+-chmod 600 /etc/postfix/sasl_passwd /etc/postfix/sasl_passwd.db
+-nano /etc/postfix/main.cf
+
+-- nano --
+
+(Al final de todo poner)
+
+relayhost = [smtp.gmail.com]:587
+smtp_use_tls = yes
+smtp_sasl_auth_enable = yes
+smtp_sasl_password_maps = hash:/etc/postfix/sasl_passwd
+smtp_sasl_security_options = noanonymous
+smtp_tls_CAfile = /etc/ssl/certs/ca-bundle.crt
+
+(verificar que ninguna linea se repita)
+
+-- terminal --
+
+-systemctl status postfix
+-echo "Correo prueba" | mail -s "Prueba Relay Gmail" (correo de prueba)
+-mailq (hasta que no aparezca nada).
+-(verificar el correo de prueba)
+-echo "Erick - 20250846" | mail -s "MambruSeFueALaGuerra" os3conadrian@gmail.com (esto es de la practica)
+-mailq (hasta que no aparezca nada).
+
+----- Comandos utilizados en laboratorio 4:3: Instalar un servidor de Impresion -----
+
+-date
+-sudo su
+-dnf install cups -y
+-systemctl enable cups --now
+-systemctl status cups
+-firewall-cmd --permanent --add-port-631/tcp
+-firewall-cmd --reload
+-dnf install cups-pdf -y
+-systemctl restart cups
+-lpstat -p -d
+-echo "Impresión de prueba" | lp
+-journalctl -u cups -xe
+-(mirar el log, por lo general al final nos saldrá el mensaje de si se envió o no)
+-nano /etc/cups/cupsd.conf
+
+-- nano --
+
+(buscar estas lines con ctrl + w y Location, y agregar Allow all a cada una al final)
+
+<Location />
+  Order allow,deny
+  Allow all
+</Location>
+
+<Location /admin>
+  Order allow,deny
+  Allow all
+</Location>
+
+<Location /admin/conf>
+  AuthType Default
+  Require user @SYSTEM
+  Order allow,deny
+  Allow all
+</Location>
+
+(buscar la linea que dice Listen localhost:..... y cambiarla por: Port 631
+
+-- terminal --
+
+-systemctl restart cups
+-netstat -tulpn | grep cupsd
+-systemctl restart cups
+
+-- navegador host --
+
+(buscar httpd://192.168.182.131:631) (como lo mas seguro es que tu ip sea diferente pon tu ip en vez de 192.168.182.131)
+- verificar que la pagina de cups abra
+
+-- equipo host --
+
+-win + r; buscar "control printers".
+-abrir impresoras
+-agregar dispositivo y esperar unos segundos
+-seleccionar Agregar un nuevo dispositivo manualmente
+-seleccionar una impresora compartida por nombre
+-poner "http://192.168.182.131:631/printers/Cups-PDF" (192.168.182.131 → Es la IP de tu servidor Linux; 631 → Es el puerto; /printers/Cups-PDF → Es la URL generada automáticamente por CUPS para esa impresora.) y darle a siguiente.
+-En fabricante seleccionar "Generic" y en impresoras "MS Publisher ColorPrinter" y aceptar, luego siguiente y finalizar
+-Abrir Word y crear un documento con algún texto
+-entrar en archivo e imprimir ese documento de word
+-en impresora seleccionar la impresora que agregamos (Cups PDF en http://192.168.182.131:631) e imprimir el documento
+
+-- Terminal Linux --
+
+-ls /var/spool/cups-pdf/ANONYMOUS/
+-clear
+-date
+
+
+
