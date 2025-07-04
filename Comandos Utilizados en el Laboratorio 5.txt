@@ -1,0 +1,101 @@
+--- Práctica 1 - Sincronización con rsync y crontab ---
+
+# En servidor primario (nodo1)
+
+# Crear carpeta para sincronizar
+mkdir -p ~/rsync_practica
+cd ~/rsync_practica
+
+# Crear 100 archivos vacíos
+touch archivo{001..100}.txt
+
+# Copiar archivos al servidor secundario (nodo2) usando rsync
+rsync -avz ~/rsync_practica/ erick@nodo2:~/rsync_practica/
+
+# Crear script para sincronización
+echo -e '#!/bin/bash\nrsync -avz ~/rsync_practica/ erick@nodo2:~/rsync_practica/' > ~/rsync_sync.sh
+chmod +x ~/rsync_sync.sh
+
+# Editar crontab para ejecutar script cada 1 minuto
+crontab -e
+
+# Agregar línea al final para sincronizar cada minuto
+* * * * * /home/erick/rsync_sync.sh
+
+# Validar sincronización:
+# Crear archivo nuevo en servidor primario
+touch ~/rsync_practica/archivo101.txt
+
+# Esperar 1-2 minutos y verificar en nodo2
+ssh erick@nodo2 'ls ~/rsync_practica'
+
+
+
+--- Práctica 2 - Instalación y configuración de Cluster HA con Pacemaker y pcs ---
+
+# En ambos nodos (nodo1 y nodo2) como root
+
+# Instalar paquetes necesarios
+dnf install -y pacemaker corosync fence-agents-all pcs
+
+# Iniciar y habilitar pcsd
+systemctl start pcsd
+systemctl enable pcsd
+
+# Crear usuario hacluster y poner contraseña en ambos nodos
+echo "Rachmaninof" | passwd --stdin hacluster
+
+# Autenticación entre nodos (desde nodo1)
+pcs host auth nodo1 nodo2 -u hacluster -p Rachmaninof
+
+# Configurar cluster
+pcs cluster setup ha-cluster nodo1 nodo2
+
+# Iniciar y habilitar cluster
+pcs cluster start --all
+pcs cluster enable --all
+
+# Verificar estado del cluster
+pcs status
+
+# Crear recurso IP flotante (ejemplo IP 192.168.182.200)
+pcs resource create IP_Flotante ocf:heartbeat:IPaddr2 ip=192.168.182.200 cidr_netmask=24 op monitor interval=30s
+
+# Verificar que IP flotante está activa
+pcs status
+
+
+
+--- Práctica 3 - Cluster HA HTTP con Keepalived y servidores web ---
+
+# En ambos nodos (nodo1 y nodo2)
+
+# Instalar apache/nginx y keepalived
+dnf install -y httpd keepalived
+# o
+dnf install -y nginx keepalived
+
+# Configurar página web diferenciada en cada nodo
+echo "<h1>Servidor 1</h1><p>Este contenido viene desde nodo1 (Apache)</p>" > /var/www/html/index.html
+# o en nodo2
+echo "<h1>Servidor 2</h1><p>Este contenido viene desde nodo2 (NGINX)</p>" > /usr/share/nginx/html/index.html
+
+# Configurar keepalived en /etc/keepalived/keepalived.conf
+# (Ejemplo básico para IP flotante 192.168.182.200)
+
+# Reiniciar servicios
+systemctl enable --now httpd
+systemctl enable --now keepalived
+# o para nginx
+systemctl enable --now nginx
+systemctl enable --now keepalived
+
+# Verificar estado de keepalived
+systemctl status keepalived
+
+# Probar acceso a la IP flotante en navegador
+curl http://192.168.182.200
+
+# Apagar un nodo y verificar que la página sigue accesible
+systemctl stop keepalived
+
