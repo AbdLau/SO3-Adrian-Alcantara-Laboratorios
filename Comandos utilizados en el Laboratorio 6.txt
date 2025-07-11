@@ -1,0 +1,345 @@
+______________________________________________________________________
+______________Comandos utilizados en el Laboratorio 6_________________
+
+
+----Laboratorio 6.1: Cifrado de archivos con GPG2----
+
+# Cambiar a superusuario
+sudo su
+
+# Instalar GPG2 si no está instalado
+dnf install gnupg2 -y
+
+# Salir de superusuario para trabajar como usuario normal (recomendado)
+exit
+
+# Crear un archivo de texto para cifrar (ejemplo)
+echo "Este es un archivo secreto para cifrar con GPG2." > archivo_secreto.txt
+
+# Generar un par de claves GPG (RSA 2048 bits, sin passphrase para simplificar)
+gpg2 --full-generate-key
+# Durante el proceso:
+# - Elegir tipo: 1 (RSA and RSA)
+# - Tamaño: 2048
+# - Duración: 0 (sin caducidad)
+# - Confirmar
+# - Ingresar nombre y correo (puedes usar datos de prueba)
+# - Confirmar y terminar
+
+# Listar claves para verificar que la clave fue creada
+gpg2 --list-keys
+
+# Cifrar archivo usando la clave creada (puedes usar el correo o ID de la clave)
+gpg2 --encrypt -r TU_CORREO_O_ID archivo_secreto.txt
+# Esto genera archivo_secreto.txt.gpg (archivo cifrado)
+
+# Intentar ver el contenido cifrado directamente (debe ser ilegible)
+cat archivo_secreto.txt.gpg
+
+# Intentar descifrar el archivo (te pedirá confirmación o passphrase)
+gpg2 --decrypt archivo_secreto.txt.gpg > archivo_descifrado.txt
+
+# Verificar que el contenido descifrado es correcto
+cat archivo_descifrado.txt
+
+# --- Para probar acceso incorrecto ---
+# Intentar descifrar con otra clave o sin tener la clave privada (esto es a nivel usuario, se puede simular si tienes más de una clave)
+
+# Para exportar tu clave pública y compartirla (si quieres)
+gpg2 --export -a TU_CORREO_O_ID > clave_publica.asc
+
+# Para importar clave pública de otro usuario (si es necesario)
+gpg2 --import clave_publica.asc
+
+# --- Opcional: crear un archivo cifrado simétrico (con passphrase) ---
+gpg2 -c archivo_secreto.txt
+# Te pedirá la passphrase para cifrar
+
+# Para descifrar archivo cifrado simétricamente
+gpg2 archivo_secreto.txt.gpg
+
+
+____________________________________________________________________________________________________
+____________________________________________________________________________________________________
+
+
+----Laboratorio 6.2 – Firewall con iptables y firewalld (puertos 80, 21 y 22)----
+
+# Cambiar a superusuario
+sudo su
+
+# Verificar que iptables esté instalado
+iptables --version
+
+# Ver las reglas actuales del firewall
+iptables -L -n -v
+
+# Instalar servicios HTTP y FTP
+dnf install httpd vsftpd -y
+
+# Iniciar servicios HTTP y FTP
+systemctl enable --now httpd
+systemctl enable --now vsftpd
+
+# Verificar que SSH esté corriendo
+systemctl status sshd
+
+# Ver la IP del servidor para pruebas desde Windows
+ip a
+
+# Desde CMD Windows: probar conexión telnet a puertos 80, 21, 22 (deberían conectar)
+
+# Bloquear puerto 80 (HTTP)
+iptables -A INPUT -p tcp --dport 80 -j DROP
+
+# Bloquear puerto 21 (FTP)
+iptables -A INPUT -p tcp --dport 21 -j DROP
+
+# Bloquear puerto 22 (SSH)
+iptables -A INPUT -p tcp --dport 22 -j DROP
+
+# Ver reglas iptables activas
+iptables -L -n -v
+
+# Desde CMD Windows: probar telnet a puertos 80, 21, 22 (no deberían conectar)
+
+# Instalar iptables-services para guardar reglas
+dnf install iptables-services -y
+
+# Guardar reglas actuales
+iptables-save > /etc/sysconfig/iptables
+
+# Reabrir puertos quitando las reglas DROP
+iptables -D INPUT -p tcp --dport 80 -j DROP
+iptables -D INPUT -p tcp --dport 21 -j DROP
+iptables -D INPUT -p tcp --dport 22 -j DROP
+
+# Ver reglas iptables actualizadas
+iptables -L -n -v
+
+# Desde CMD Windows: probar telnet a puertos 80, 21, 22 (deberían conectar)
+
+# Instalar firewalld
+dnf install firewalld -y
+
+# Habilitar y arrancar firewalld
+systemctl enable --now firewalld
+
+# Verificar estado firewalld
+firewall-cmd --state
+
+# Iniciar servicios HTTP y FTP si no están corriendo
+systemctl enable --now httpd
+systemctl enable --now vsftpd
+
+# Verificar que SSH esté activo
+systemctl status sshd
+
+# Ver IP para pruebas
+ip a
+
+# Desde CMD Windows: probar telnet a puertos 80, 21, 22 (deberían conectar)
+
+# Bloquear puerto 80 con firewalld
+firewall-cmd --permanent --remove-port=80/tcp
+
+# Bloquear puerto 21 con firewalld
+firewall-cmd --permanent --remove-port=21/tcp
+
+# Bloquear puerto 22 con firewalld
+firewall-cmd --permanent --remove-port=22/tcp
+
+# Aplicar cambios firewalld
+firewall-cmd --reload
+
+# Desde CMD Windows: probar telnet a puertos 80, 21, 22 (no deberían conectar)
+
+# Volver a abrir puertos con firewalld
+firewall-cmd --permanent --add-port=80/tcp
+firewall-cmd --permanent --add-port=21/tcp
+firewall-cmd --permanent --add-port=22/tcp
+
+# Aplicar cambios firewalld
+firewall-cmd --reload
+
+# Desde CMD Windows: probar telnet a puertos 80, 21, 22 (deberían conectar)
+
+# Salir del superusuario
+exit
+
+
+____________________________________________________________________________________________________
+____________________________________________________________________________________________________
+
+
+----Laboratorio 6.3: Instalacion de IDS snort----
+
+
+# Actualizar repositorios y sistema
+sudo dnf update && sudo yum update
+
+# Instalar repositorio EPEL para paquetes adicionales
+sudo dnf install https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm -y
+
+# Habilitar repositorio CodeReady Builder necesario para dependencias
+sudo subscription-manager repos --enable codeready-builder-for-rhel-8-x86_64-rpms
+
+# Actualizar todo el sistema
+sudo yum upgrade -y
+
+# Editar archivo para agregar rutas de librerías locales
+sudo nano /etc/ld.so.conf.d/local.conf
+# Agrega estas dos líneas (guardar y salir):
+# /usr/local/lib
+# /usr/local/lib64
+
+# Instalar dependencias necesarias para compilar Snort y libdaq
+sudo dnf install flex bison gcc gcc-c++ make cmake autoconf libtool git nano unzip wget libpcap-devel pcre-devel libdnet-devel hwloc-devel openssl-devel zlib-devel luajit-devel pkgconfig pkgconf libunwind-devel libnfnetlink-devel libnetfilter_queue-devel libmnl-devel xz-devel gperftools libuuid-devel hyperscan hyperscan-devel -y
+
+# Clonar y compilar libdaq (dependencia de Snort)
+git clone https://github.com/snort3/libdaq.git
+cd libdaq/
+./bootstrap
+./configure && make && sudo make install
+sudo ldconfig
+cd ../
+
+# Clonar y compilar Snort 3
+git clone https://github.com/snort3/snort3.git
+cd snort3
+
+# Exportar variables de entorno necesarias para compilación
+export PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH
+export PKG_CONFIG_PATH=/usr/local/lib64/pkgconfig:$PKG_CONFIG_PATH
+export CFLAGS="-O3"
+export CXXFLAGS="-O3 -fno-rtti"
+
+# Configurar compilación con cmake y optimizaciones, especificando prefijo de instalación
+./configure_cmake.sh --prefix=/usr/local/snort --enable-tcmalloc
+
+# Compilar usando todos los núcleos disponibles y luego instalar
+cd build/
+make -j$(nproc)
+sudo make -j$(nproc) install
+cd ../../
+
+# Actualizar cache de librerías
+sudo ldconfig
+
+# Verificar que Snort está instalado y funcionando
+/usr/local/snort/bin/snort
+sudo ln -s /usr/local/snort/bin/snort /usr/bin/snort
+snort -V
+
+# Configurar Snort: editar archivo snort.lua para definir red local
+sudo nano /usr/local/snort/etc/snort/snort.lua
+# Buscar y modificar la línea HOME_NET:
+# HOME_NET = '10.0.0.76/24'   # Ajusta según tu red
+
+# Probar configuración de Snort
+snort -T -c /usr/local/snort/etc/snort/snort.lua
+
+# Poner interfaz en modo promiscuo para capturar todo el tráfico
+sudo ip link set dev ens160 promisc on
+
+# Crear reglas locales para detectar tráfico ICMP y tráfico a puertos 80, 21 y 22
+sudo nano /usr/local/snort/etc/snort/local.rules
+# Agrega estas líneas (guardar y salir):
+# alert icmp any any -> any any ( msg:"ICMP Traffic Detected"; sid:10000001; metadata:policy security-ips alert; )
+# alert tcp any any -> any 80 ( msg:"HTTP Traffic Detected"; sid:10000002; metadata:policy security-ips alert; )
+# alert tcp any any -> any 21 ( msg:"FTP Traffic Detected"; sid:10000003; metadata:policy security-ips alert; )
+# alert tcp any any -> any 22 ( msg:"SSH Traffic Detected"; sid:10000004; metadata:policy security-ips alert; )
+
+# Ejecutar Snort con configuración y reglas locales, interfaz correcta y modo de alerta rápida
+sudo snort -c /usr/local/snort/etc/snort/snort.lua -R /usr/local/snort/etc/snort/local.rules -i ens160 -A alert_fast -s 65535 -k none
+
+# En Windows cmd hacer estas pruebas
+ping <IP_SERVIDOR>         # Debería disparar alerta ICMP en Snort
+telnet <IP_SERVIDOR> 80    # Dispara alerta HTTP
+telnet <IP_SERVIDOR> 21    # Dispara alerta FTP
+telnet <IP_SERVIDOR> 22    # Dispara alerta SSH
+
+# Esto debería aparecer en la interfaz de Snort
+[**] [1:10000001:1] ICMP Traffic Detected [**]
+[**] [1:10000002:1] HTTP Traffic Detected [**]
+[**] [1:10000003:1] FTP Traffic Detected [**]
+[**] [1:10000004:1] SSH Traffic Detected [**]
+
+# Salir de la interfaz de Snort
+ctrl+c
+
+
+____________________________________________________________________________________________________
+____________________________________________________________________________________________________
+
+
+----Laboratorio 6.4: Configurar 2FA con google authenticator Modulo PAM para Acceso SSH----
+
+
+# Cambiar a superusuario
+sudo su
+
+# Instalar Google Authenticator PAM module
+dnf install google-authenticator -y
+
+# Salir de root para configurar Google Authenticator en el usuario que usará 2FA
+exit
+
+# Cambiar al usuario que usará 2FA (ejemplo: erick)
+su - erick
+
+# Ejecutar configuración de Google Authenticator para ese usuario
+google-authenticator
+
+# RESPONDER 'y' a todas las preguntas:
+# - Actualizar archivo ~/.google_authenticator
+# - Limitar uso del código a una vez
+# - Permitir códigos de tiempo desfasados
+# - Actualizar PAM configuration
+# - Habilitar códigos de emergencia
+
+# *** Ahora escanea el código QR que aparece con la app Google Authenticator en tu móvil ***
+# Para configurar la app móvil:
+# 1. Abre Google Authenticator (Android o iOS)
+# 2. Presiona '+' y elige 'Escanear código QR'
+# 3. Escanea el código que te mostró el terminal
+# 4. Guarda bien los códigos de emergencia que salen en la terminal
+# Si no puedes escanear, también puedes ingresar manualmente la clave secreta que aparece.
+
+# Salir del usuario para volver a root
+exit
+
+# Volver a superusuario
+sudo su
+
+# Editar PAM para SSH y permitir Google Authenticator
+nano /etc/pam.d/sshd
+# Añadir al inicio o después de '@include password-auth' esta línea:
+# auth required pam_google_authenticator.so nullok
+# Guardar y salir
+
+# Editar configuración SSH
+nano /etc/ssh/sshd_config
+# Asegurarse que estén estas líneas:
+# ChallengeResponseAuthentication yes
+# UsePAM yes
+# PasswordAuthentication yes   # o no, según tu política
+
+# Guardar y salir
+
+# Reiniciar servicio SSH para aplicar cambios
+systemctl restart sshd
+
+# Salir de superusuario
+exit
+
+# --- Para probar ---
+# En Windows cmd
+     ssh usuario(el que se uso para configurar Google Auth...)@ip_del_servidor
+ - Ingresa tu contraseña cuando te la pida.
+ - Luego te pedirá el código que genera Google Authenticator en tu móvil.
+ - Si ambos son correctos, tendrás acceso.
+ - Deja una sesión abierta mientras haces pruebas para no quedarte fuera.
+ - Si pierdes el móvil, usa los códigos de emergencia que guardaste.
+
+
