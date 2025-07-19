@@ -1,0 +1,348 @@
+________________________________________________________________________________
+___________________________ LABORATORIOS - MODULO 7 ____________________________
+________________________________________________________________________________
+
+Requisitos:
+ - VM1: Servidor Linux (Oracle Linux) (AGREGAR SEGUNDO ADAPTADOR DE RED DESDE CONFIGURACION DE VM Y PONERLO EN HOST ONLY)
+ - VM2: Cliente Linux (Oracle Linux) (AGREGAR SEGUNDO ADAPTADOR DE RED DESDE CONFIGURACION DE VM Y PONERLO EN HOST ONLY)
+ - VM3: Cliente Windows (Mini Win10)
+
+-------------------------------------------------------------------------------
+PRÁCTICA 1 – COMPARTIR ARCHIVOS ENTRE LINUX USANDO NFS
+-------------------------------------------------------------------------------
+
+--- EN EL SERVIDOR LINUX ---
+
+# 1. Instalar NFS server
+sudo dnf -y install nfs-utils
+
+# 2. Crear carpeta a compartir
+sudo mkdir -p /srv/OS3
+
+# 3. Crear 100 archivos de prueba
+for i in {1..100}; do echo "Archivo Adrian$i" > /srv/OS3/Adrian$i.txt; done
+
+# 4. Asignar permisos para que todos puedan acceder
+sudo chown -R nobody:nogroup /srv/OS3
+sudo chmod -R 777 /srv/OS3
+
+# 5. Configurar exports para compartir carpeta
+echo "/srv/OS3 *(rw,sync,no_root_squash)" | sudo tee -a /etc/exports
+
+# 6. Habilitar y arrancar servicio NFS
+sudo systemctl enable --now nfs-server
+
+# 7. Exportar configuración
+sudo exportfs -rav
+
+# 8. Verificar que está exportado
+sudo exportfs -v
+
+# 9. Ver IP del servidor para usar en cliente
+ip a
+
+--- EN EL CLIENTE LINUX ---
+
+# 10. Instalar cliente NFS
+sudo dnf -y install nfs-utils
+
+# 11. Crear punto de montaje local
+sudo mkdir -p /mnt/OS3
+
+# 12. Montar temporalmente el recurso NFS del servidor
+sudo mount -t nfs <IP_SERVIDOR>:/srv/OS3 /mnt/OS3
+
+# 13. Verificar que están los archivos
+ls -lh /mnt/OS3
+
+# 14. Configurar montaje automático en /etc/fstab
+echo "<IP_SERVIDOR>:/srv/OS3 /mnt/OS3 nfs defaults 0 0" | sudo tee -a /etc/fstab
+
+# 15. Probar reiniciando la VM cliente
+sudo reboot
+
+# 16. Verificar después del reinicio que se montó solo
+ls -lh /mnt/OS3
+
+
+-------------------------------------------------------------------------------
+PRÁCTICA 2 – CREACION DE FILESERVER COMPATIBLE CON WINDOWS UTILIZANDO SAMBA
+-------------------------------------------------------------------------------
+
+
+--- EN EL SERVIDOR LINUX ---
+
+# 1. Instalar Samba server
+sudo dnf -y install samba samba-client samba-common
+
+# 2. Crear carpeta a compartir
+sudo mkdir -p /srv/samba/OS3
+
+# 3. Crear 100 archivos de prueba
+for i in {1..100}; do echo "Archivo Samba Adrian$i" > /srv/samba/OS3/Adrian$i.txt; done
+
+# 4. Crear grupo y usuario para Samba
+sudo groupadd sambashare
+sudo useradd -M -d /srv/samba/OS3 -s /sbin/nologin -G sambashare sambauser
+echo "samba123" | sudo smbpasswd -a sambauser
+
+# 5. Asignar permisos
+sudo chown -R sambauser:sambashare /srv/samba/OS3
+sudo chmod -R 770 /srv/samba/OS3
+
+# 6. Configurar Samba compartición
+sudo tee -a /etc/samba/smb.conf > /dev/null <<EOF
+
+[OS3]
+   path = /srv/samba/OS3
+   browseable = yes
+   writable = yes
+   read only = no
+   guest ok = no
+   valid users = @sambashare
+EOF
+
+# 7. Habilitar y arrancar Samba
+sudo systemctl enable --now smb nmb
+
+# 8. Verificar puertos abiertos
+sudo firewall-cmd --permanent --add-service=samba
+sudo firewall-cmd --reload
+
+# 9. Ver IP del servidor para usar en Windows
+ip a
+
+--- EN EL CLIENTE WINDOWS ---
+
+ Abrir Explorador de Archivos → botón derecho en "Este equipo" → "Conectar unidad de red".
+
+ Elegir una letra de unidad (por ejemplo Z:)
+
+ En carpeta, escribir:
+   \\<IP_DEL_SERVIDOR>\OS3
+
+ Activar "Conectar con credenciales diferentes".
+
+ Cuando pida credenciales, ingresar:
+   Usuario: sambauser  
+   Contraseña: samba123
+
+ Verás los 100 archivos Adrian1.txt … Adrian100.txt
+
+ Abrir Adrian99.txt, agregar:
+   "el zumzum de la carabela"  
+   Guardar.
+
+--- VOLVER AL SERVIDOR LINUX ---
+
+# 10. Validar desde Linux que el archivo se modificó
+cat /srv/samba/OS3/Adrian99.txt
+# Debería mostrar la frase editada desde Windows.
+
+-------------------------------------------------------------------------------
+PRÁCTICA 3 – CONTROLADOR DE DOMINIO SAMBA4 CON WINDOWS
+-------------------------------------------------------------------------------
+
+--- EN EL SERVIDOR LINUX ---
+
+-------------------------------------------------------------------------------
+---- LABORATORIO 7.1: PREPARACIÓN DEL SISTEMA ---------------------------------
+-------------------------------------------------------------------------------
+
+# 1. Cambiar el nombre del host (hostname) del servidor para que tenga el nombre de dominio
+sudo hostnamectl set-hostname SO3.inet
+
+# 2. Editar el archivo /etc/hosts para agregar la IP y nombre del servidor
+echo "192.168.0.210  SO3-DOM  SO3.inet" | sudo tee -a /etc/hosts
+
+# 3. Actualizar todos los paquetes del sistema
+sudo dnf -y update
+
+# 4. Instalar EPEL Release (repositorio adicional con más paquetes)
+sudo dnf -y install epel-release
+
+# 5. Habilitar el repositorio powertools (necesario para dependencias)
+# En Oracle Linux 8 se llama 'ol8_codeready_builder', entonces:
+sudo dnf config-manager --enable ol8_codeready_builder
+
+# 6. Instalar paquetes básicos para compilar (wget, tar, gcc, make, python3)
+sudo dnf -y install wget tar gcc make python3-devel
+
+-------------------------------------------------------------------------------
+---- LABORATORIO 7.2: DESCARGA E INSTALACIÓN DE SAMBA -------------------------
+-------------------------------------------------------------------------------
+
+# 7. Crear carpeta donde descargaremos Samba y entrar a ella
+sudo mkdir -p /samba
+cd /samba
+
+# 8. Descargar la versión de Samba especificada (4.16.2)
+sudo wget https://download.samba.org/pub/samba/stable/samba-4.16.2.tar.gz
+
+# 9. Verificar que se descargó
+ls -lh samba-4.16.2.tar.gz
+
+# 10. Descomprimir el archivo
+sudo tar -zxvf samba-4.16.2.tar.gz
+
+# 11. Entrar a la carpeta de Samba
+cd samba-4.16.2
+
+# 12. Instalar todas las dependencias necesarias para compilar Samba
+sudo dnf -y install docbook-style-xsl python3-markdown bison dbus-devel flex gdb \
+gnutls-devel jansson-devel keyutils-libs-devel krb5-workstation libacl-devel \
+libaio-devel libarchive-devel libattr-devel libblkid-devel libtasn1 libtasn1-tools \
+libxml2-devel libxslt lmdb-devel openldap-devel pam-devel perl \
+perl-ExtUtils-MakeMaker perl-Parse-Yapp popt-devel python3-cryptography python3-dns \
+python3-gpg python3-devel readline-devel rpcgen systemd-devel zlib-devel perl-JSON \
+gpgme-devel screen
+
+# 13. Configurar Samba para instalarse en /usr/local/samba con soporte ADS y systemd
+./configure --prefix=/usr/local/samba --enable-fhs --with-ads --with-systemd
+
+# 14. Compilar usando todos los núcleos disponibles (esto tarda un poco)
+make -j$(nproc)
+
+# 15. Instalar Samba compilado
+sudo make install
+
+-------------------------------------------------------------------------------
+---- LABORATORIO 7.3: CONFIGURAR PATH GLOBAL DE SAMBA -------------------------
+-------------------------------------------------------------------------------
+
+# 16. Agregar Samba al PATH global del sistema
+echo 'export PATH=/usr/local/samba/bin:/usr/local/samba/sbin:$PATH' | sudo tee /etc/profile.d/samba.sh
+
+# 17. Cargar la nueva configuración del PATH
+source /etc/profile.d/samba.sh
+
+# 18. Verificar que samba-tool ahora funciona
+samba-tool -h
+
+-------------------------------------------------------------------------------
+---- LABORATORIO 7.4: PROVISIÓN DEL DOMINIO AD --------------------------------
+-------------------------------------------------------------------------------
+
+# 19. Eliminar configuración smb.conf anterior si existe
+sudo rm -f /usr/local/samba/etc/samba/smb.conf
+
+# 20. Definir variables para el dominio
+DOMAIN="OS3.INET"
+DOMAIN_ADMIN="Administrator"
+DOMAIN_PASS="Rae123456!"
+
+# 21. Ejecutar provisión del dominio como Controlador de Dominio (DC)
+sudo samba-tool domain provision --use-rfc2307 \
+--realm=${DOMAIN} \
+--domain=${DOMAIN%%.*} \
+--server-role=dc \
+--dns-backend=SAMBA_INTERNAL \
+--adminpass=${DOMAIN_PASS}
+
+# Se generará automáticamente smb.conf y la configuración base del dominio.
+
+-------------------------------------------------------------------------------
+---- LABORATORIO 7.5: CONFIGURACIÓN DE KERBEROS -------------------------------
+-------------------------------------------------------------------------------
+
+# 22. Copiar el archivo de Kerberos generado por Samba a la ubicación del sistema
+sudo cp /usr/local/samba/private/krb5.conf /etc/krb5.conf
+
+# 23. Probar autenticación Kerberos para el Administrador del dominio
+kinit ${DOMAIN_ADMIN}
+
+# 24. Verificar ticket Kerberos activo
+klist
+
+-------------------------------------------------------------------------------
+---- LABORATORIO 7.6: CREAR SERVICIO SYSTEMD PARA SAMBA -----------------------
+-------------------------------------------------------------------------------
+
+# 25. Crear archivo de servicio systemd para Samba
+sudo tee /etc/systemd/system/samba.service > /dev/null <<EOF
+[Unit]
+Description=Samba Active Directory Domain Controller
+After=network.target remote-fs.target nss-lookup.target
+
+[Service]
+Type=forking
+ExecStart=/usr/local/samba/sbin/samba -D
+PIDFile=/usr/local/samba/var/run/samba.pid
+ExecReload=/bin/kill -HUP \$MAINPID
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# 26. Recargar systemd para que detecte el nuevo servicio
+sudo systemctl daemon-reload
+
+# 27. Habilitar y arrancar Samba
+sudo systemctl enable --now samba
+
+# 28. Verificar estado del servicio Samba
+systemctl status samba
+
+-------------------------------------------------------------------------------
+---- LABORATORIO 7.7: CONFIGURACIÓN DEL FIREWALL ------------------------------
+-------------------------------------------------------------------------------
+
+# 29. Abrir puertos necesarios para AD en el firewall
+sudo firewall-cmd --permanent --add-service={ldap,ldaps,kerberos,dns}
+sudo firewall-cmd --permanent --add-port={53,88,135,139,389,445,464,636,3268,3269}/tcp
+sudo firewall-cmd --permanent --add-port={53,88,123,138,389,464}/udp
+
+# 30. Recargar firewall
+sudo firewall-cmd --reload
+
+-------------------------------------------------------------------------------
+---- LABORATORIO 7.8: CONFIGURACIÓN DE SELINUX --------------------------------
+-------------------------------------------------------------------------------
+
+# 31. Habilitar políticas SELinux para Samba como Domain Controller
+sudo setsebool -P samba_domain_controller on
+sudo setsebool -P samba_enable_home_dirs on
+
+-------------------------------------------------------------------------------
+---- LABORATORIO 7.9: CONFIGURACIÓN DE DNS Y RESOLUCIÓN -----------------------
+-------------------------------------------------------------------------------
+
+# 32. Verificar zonas DNS creadas por Samba
+sudo samba-tool dns query localhost ${DOMAIN} @ ALL
+
+# 33. Crear zona reversa para DNS
+sudo samba-tool dns zonecreate localhost 0.168.192.in-addr.arpa
+
+# 34. Configurar resolv.conf para usar el DNS local
+echo "nameserver 127.0.0.1" | sudo tee /etc/resolv.conf
+echo "search ${DOMAIN}" | sudo tee -a /etc/resolv.conf
+
+# 35. Proteger resolv.conf para que no sea modificado
+sudo chattr +i /etc/resolv.conf
+
+-------------------------------------------------------------------------------
+---- LABORATORIO 7.10: VERIFICACIONES Y PRUEBAS -------------------------------
+-------------------------------------------------------------------------------
+
+# 36. Verificar estado del servicio Samba
+systemctl status samba
+
+# 37. Verificar nivel del dominio
+samba-tool domain level show
+
+# 38. Ver replicación del dominio
+samba-tool drs showrepl
+
+# 39. Listar usuarios en el dominio
+samba-tool user list
+
+# 40. Probar acceso SMB desde el servidor
+smbclient -L localhost -U ${DOMAIN_ADMIN}
+
+# 41. Verificar registro SRV DNS
+host -t SRV _ldap._tcp.${DOMAIN}
+
+-------------------------------------------------------------------------------
+FIN DEL MODULO 7
+-------------------------------------------------------------------------------
+
