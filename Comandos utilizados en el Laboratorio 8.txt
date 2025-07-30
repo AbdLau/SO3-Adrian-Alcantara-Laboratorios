@@ -1,0 +1,107 @@
+________________________________________________________________________________
+___________________________ LABORATORIOS - MODULO 8 ____________________________
+________________________________________________________________________________
+
+
+
+-------------------------------------------------------------------------------
+        # === PRÁCTICA 1: INSTALACIÓN Y USO DE NGINX CON DOCKER === #
+-------------------------------------------------------------------------------
+
+
+# Instalar Docker (ya deberías tenerlo instalado, pero por si acaso)
+sudo dnf install -y docker
+sudo systemctl start docker
+sudo systemctl enable docker
+
+# Crear carpeta para el contenido web persistente
+mkdir -p /home/website
+
+# Crear página personalizada
+echo "<h1>Nombre: Erick Abdiel<br>Matrícula: 20250846</h1>" > /home/website/index.html
+
+# Ejecutar contenedor de NGINX
+docker run -d --name nginx-container \
+  -p 8888:80 \
+  -v /home/website:/usr/share/nginx/html \
+  nginx
+
+# Verificar en navegador: http://127.0.0.1:8888
+
+
+
+-------------------------------------------------------------------------------
+             # === PRÁCTICA 2: INSTALACIÓN DE PORTAINER === #
+-------------------------------------------------------------------------------
+
+
+# Crear volumen para Portainer
+docker volume create portainer_data
+
+# Ejecutar contenedor de Portainer
+docker run -d -p 9443:9443 -p 8000:8000 --name portainer \
+  --restart=always \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -v portainer_data:/data \
+  portainer/portainer-ce:latest
+
+# Verificar en navegador: https://127.0.0.1:9443
+# Configurar admin, luego ver contenedores y detener nginx desde la interfaz
+
+
+
+-------------------------------------------------------------------------------
+            # === PRÁCTICA 3: WORDPRESS CON DOCKER COMPOSE === #
+-------------------------------------------------------------------------------
+
+
+# Instalar docker-compose si no lo tienes
+sudo dnf install -y docker-compose
+
+# Crear carpeta para el proyecto
+mkdir -p ~/wordpress && cd ~/wordpress
+
+# Crear archivo docker-compose.yml
+cat <<EOF > docker-compose.yml
+version: '3.3'
+
+services:
+  db:
+    image: mysql:5.7
+    restart: always
+    environment:
+      MYSQL_DATABASE: wordpress
+      MYSQL_USER: erick
+      MYSQL_PASSWORD: wordpress123
+      MYSQL_ROOT_PASSWORD: root123
+    volumes:
+      - db_data:/var/lib/mysql
+
+  wordpress:
+    image: wordpress:latest
+    ports:
+      - "8080:80"
+    restart: always
+    environment:
+      WORDPRESS_DB_HOST: db:3306
+      WORDPRESS_DB_NAME: wordpress
+      WORDPRESS_DB_USER: erick
+      WORDPRESS_DB_PASSWORD: wordpress123
+    volumes:
+      - wp_data:/var/www/html
+
+volumes:
+  db_data:
+  wp_data:
+EOF
+
+# Desplegar los contenedores
+docker-compose up -d
+
+# Verificar en navegador: http://127.0.0.1:8080
+# Completar instalación de WordPress desde el navegador
+
+
+-------------------------------------------------------------------------------
+                              FIN DEL MODULO 7
+-------------------------------------------------------------------------------
