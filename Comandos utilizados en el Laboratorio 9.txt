@@ -1,0 +1,194 @@
+________________________________________________________________________________
+___________________________ MÓDULO 9 - LABORATORIOS ____________________________
+________________________________________________________________________________
+
+REQUISITOS GENERALES:
+
+VM1 (Ansible Controller - Linux):
+- Oracle Linux / CentOS / Ubuntu
+- Acceso root o sudo
+- Conexión a Internet
+
+VM2 (Ansible Client 01 - Linux en Digital Ocean):
+- Ubuntu 22.04 (especificado en la práctica)
+- Conectividad SSH con clave pública desde la VM1
+
+VM3 (Ansible Client 02 - Windows 10):
+- Configurada en red interna o NAT con acceso desde la VM1
+
+________________________________________________________________________________
+
+PRÁCTICA 1 - INSTALACIÓN DE WEBMIN
+________________________________________________________________________________
+
+# En la VM1 (Linux Controller):
+
+# 1. Instalar dependencias
+sudo dnf install perl -y                # O 'apt install perl' en Debian/Ubuntu
+sudo dnf install wget -y
+
+# 2. Descargar Webmin
+wget http://www.webmin.com/download/rpm/webmin-current.rpm
+
+# 3. Instalar Webmin
+sudo dnf install ./webmin-current.rpm -y
+
+# Acceso:
+# Abrir navegador: https://IP_DEL_CONTROLLER:10000
+
+# Opciones a mostrar en el video:
+# - Administración de usuarios (crear, eliminar)
+# - Servicios del sistema (iniciar, detener SSH)
+# - Red: configurar IP estática
+# - Software: instalar, eliminar apps
+# - Archivos: navegar, editar y eliminar
+# - Monitoreo del sistema
+
+________________________________________________________________________________
+
+PRÁCTICA 2 - DESPLIEGUE VM CON TERRAFORM EN DIGITAL OCEAN (1 Punto)
+________________________________________________________________________________
+
+# En la VM1 (Linux Controller):
+
+# 1. Instalar Terraform
+sudo dnf install -y yum-utils
+sudo yum-config-manager --add-repo https://rpm.releases.hashicorp.com/RHEL/hashicorp.repo
+sudo dnf install terraform -y
+
+# 2. Crear archivo terraform.tf con contenido:
+provider "digitalocean" {
+  token = "TU_TOKEN_DO"
+}
+
+resource "digitalocean_droplet" "ansibleClient" {
+  image  = "ubuntu-22-04-x64"
+  name   = "OS3vm"
+  region = "nyc1"
+  size   = "s-1vcpu-1gb"
+  ssh_keys = ["TU_ID_LLAVE_PUBLICA"]
+}
+
+# 3. Ejecutar Terraform
+terraform init
+terraform apply
+
+# Validar conexión SSH y visualización desde DigitalOcean web.
+
+________________________________________________________________________________
+
+PRÁCTICA 3 - INSTALACIÓN Y CONFIGURACIÓN DE ANSIBLE
+________________________________________________________________________________
+
+# En VM1 (Controller Linux):
+
+# 1. Instalar Ansible
+sudo dnf install epel-release -y
+sudo dnf install ansible -y
+
+# 2. Crear usuario ansible con sudo
+sudo useradd -m -s /bin/bash ansible
+sudo passwd ansible
+sudo usermod -aG wheel ansible
+
+# 3. Generar claves SSH (como root o ansible)
+ssh-keygen -t rsa
+
+# 4. Copiar clave a Linux Client (DigitalOcean)
+ssh-copy-id ansible@IP_CLIENTE_LINUX
+
+# 5. Configurar acceso a Windows
+
+## En PowerShell como Admin en Windows (VM3):
+Set-ExecutionPolicy RemoteSigned -Force
+Enable-PSRemoting -Force
+Set-Item WSMan:\localhost\Service\Auth\Basic -Value $true
+Set-Item WSMan:\localhost\Service\AllowUnencrypted -Value $true
+New-NetFirewallRule -Name "WinRM HTTP" -Protocol TCP -LocalPort 5985 -Action Allow
+
+## Crear usuario "ansible" local:
+New-LocalUser -Name "ansible" -Password (ConvertTo-SecureString "Rachmaninof" -AsPlainText -Force) -FullName "Ansible User"
+Add-LocalGroupMember -Group "Administrators" -Member "ansible"
+
+# 6. Inventario Ansible: /etc/ansible/hosts
+
+[win]
+192.168.100.15
+
+[win:vars]
+ansible_user=ansible
+ansible_password=Rachmaninof
+ansible_connection=winrm
+ansible_winrm_transport=basic
+ansible_winrm_server_cert_validation=ignore
+ansible_port=5985
+ansible_shell_type=powershell
+
+[linux]
+167.172.135.218
+
+[linux:vars]
+ansible_user=ansible
+ansible_ssh_private_key_file=/home/ansible/.ssh/id_rsa
+
+# 7. Probar conectividad
+ansible win -m win_ping
+ansible linux -m ping
+
+________________________________________________________________________________
+
+PRÁCTICA 4 - COMANDOS AD-HOC
+________________________________________________________________________________
+
+# 1. Copiar archivo desde Desktop a Documentos en Windows
+ansible win -m win_copy -a "src=C:/Users/ansible/Desktop/prueba.txt dest=C:/Users/ansible/Documents/prueba.txt"
+
+# 2. Reiniciar cliente Linux
+ansible linux -a "/sbin/reboot"
+
+________________________________________________________________________________
+
+PRÁCTICA 5 - USO DE PLAYBOOKS
+________________________________________________________________________________
+
+# ➤ Playbook 1 - Instalar Notepad++ en Windows (notepad.yml)
+---
+- name: Instalar Notepad++ en Windows
+  hosts: win
+  tasks:
+    - name: Descargar el instalador
+      win_get_url:
+        url: https://github.com/notepad-plus-plus/notepad-plus-plus/releases/download/v8.6.5/npp.8.6.5.Installer.x64.exe
+        dest: C:\Users\ansible\Downloads\npp_installer.exe
+
+    - name: Ejecutar el instalador
+      win_package:
+        path: C:\Users\ansible\Downloads\npp_installer.exe
+        state: present
+        arguments: /S
+
+# ➤ Playbook 2 - Instalar NGINX en cliente Linux (nginx.yml)
+---
+- name: Instalar NGINX
+  hosts: linux
+  become: true
+  tasks:
+    - name: Instalar NGINX
+      package:
+        name: nginx
+        state: present
+
+    - name: Iniciar y habilitar el servicio
+      service:
+        name: nginx
+        state: started
+        enabled: true
+
+# Ejecutar playbooks:
+ansible-playbook notepad.yml
+ansible-playbook nginx.yml
+
+________________________________________________________________________________
+
+FIN
+________________________________________________________________________________
